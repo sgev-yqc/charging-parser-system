@@ -108,9 +108,11 @@ def add_order(uploaded_file) -> str:
             VALUES (?, ?, ?, ?, ?, '已完成', ?, ?)
         """, (order_id, filename, pile_id, len(content), len(data_msgs), upload_time, file_path))
 
-        # 批量插入报文
+        # 批量插入报文（跳过 header/unknown 等非 data 类型）
         msg_rows = []
         for i, r in enumerate(results, 1):
+            if r.get("type") != "data":
+                continue
             msg_rows.append((
                 order_id, i,
                 r.get("type", "data"),
@@ -118,7 +120,7 @@ def add_order(uploaded_file) -> str:
                 r.get("name", ""),
                 r.get("phase", ""),
                 r.get("direction", ""),
-                r.get("decoded", "")[:300],
+                (r.get("decoded", "") or "")[:300],
             ))
         conn.executemany("""
             INSERT INTO parsed_messages (order_id, seq, msg_type, timestamp,
