@@ -11,6 +11,20 @@ DATA_DIR = Path("/tmp/charging_parser_data")
 DB_PATH = DATA_DIR / "parser.db"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+# 最小化 CSS，仅用于品牌色
+CSS = f"""
+<style>
+    .stApp {{ font-family: 'Microsoft YaHei', '微软雅黑', system-ui, sans-serif; }}
+    /* 品牌色按钮 */
+    div.stButton > button[data-testid="baseButton-secondary"] {{
+        border-color: {C_GREEN}; color: {C_GREEN};
+    }}
+    div.stButton > button[data-testid="baseButton-secondary"]:hover {{
+        background: rgba(2,190,122,0.06);
+    }}
+</style>
+"""
+
 SORT_OPTIONS = {
     "newest": "上传时间(新→旧)",
     "oldest": "上传时间(旧→新)",

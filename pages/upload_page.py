@@ -2,9 +2,11 @@
 import streamlit as st
 import pandas as pd
 from lib.database import add_order, extract_order_id
+from lib.config import CSS
 
 
 def render():
+    st.markdown(CSS, unsafe_allow_html=True)
     nav1, nav2, _ = st.columns([1, 1.5, 10])
     with nav1:
         if st.button("📋 订单管理", use_container_width=True):

@@ -5,9 +5,11 @@ from pathlib import Path
 from lib.database import get_order, get_order_messages, get_order_phases
 from lib.database import get_all_phases, get_all_msg_names
 from lib.export import export_excel, export_json, export_txt
+from lib.config import CSS, C_GREEN
 
 
 def render():
+    st.markdown(CSS, unsafe_allow_html=True)
     nav1, nav2, _ = st.columns([1, 1.5, 10])
     with nav1:
         if st.button("← 返回列表", use_container_width=True):
@@ -37,7 +39,7 @@ def render():
     all_msg_names = get_all_msg_names(order_id)
     data_msgs = [m for m in messages if m.get("msg_type") == "data"]
 
-    st.code(order_id, language=None)
+    st.markdown(f"<div style='font-family:monospace;font-size:14px;color:{C_GREEN};padding:4px 0;'>{order_id}</div>", unsafe_allow_html=True)
     st.caption(f"订单号 · {order.get('charging_pile_id', '-')}")
 
     # 导出

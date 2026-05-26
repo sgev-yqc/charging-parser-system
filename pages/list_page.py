@@ -2,11 +2,12 @@
 import streamlit as st
 import pandas as pd
 from lib.database import search_orders, get_total_stats
-from lib.config import C_GREEN, C_TEXT
+from lib.config import C_GREEN, C_TEXT, CSS
 from lib.config import SORT_OPTIONS, STATUS_OPTIONS, PER_PAGE_OPTIONS
 
 
 def render():
+    st.markdown(CSS, unsafe_allow_html=True)
     nav1, nav2, _, nav3 = st.columns([1, 1.5, 1, 8])
     with nav1:
         st.button("📋 订单管理", disabled=True, use_container_width=True)
@@ -23,31 +24,34 @@ def render():
             unsafe_allow_html=True)
 
     st.markdown("---")
-    st.header("订单管理")
-    st.caption("检索、查看所有充电报文订单")
+    st.markdown(f"<h2 style='font-weight:500;font-size:18px;margin:0 0 4px 0;color:{C_GREEN};'>📋 订单管理</h2>", unsafe_allow_html=True)
+    st.markdown(f"<div style='font-size:12px;color:#64748d;margin-bottom:12px;'>检索、查看所有充电报文订单</div>", unsafe_allow_html=True)
 
-    # 筛选
-    with st.expander("🔍 筛选", expanded=True):
-        fc = st.columns([2, 1, 2, 1, 0.8])
-        with fc[0]:
-            search = st.text_input("关键词", placeholder="订单号/桩编号/文件名",
-                                   label_visibility="collapsed")
-        with fc[1]:
-            status_sel = st.selectbox("状态", STATUS_OPTIONS, label_visibility="collapsed")
-        with fc[2]:
-            dc = st.columns(2)
-            with dc[0]:
-                d_from = st.date_input("起始", value=None, label_visibility="collapsed", key="ldf")
-            with dc[1]:
-                d_to = st.date_input("截止", value=None, label_visibility="collapsed", key="ldt")
-        with fc[3]:
-            sort_sel = st.selectbox("排序", list(SORT_OPTIONS.values()), label_visibility="collapsed")
+    # 筛选（inline，不用 expander）
+    fc = st.columns([2, 1, 2, 1, 0.8])
+    with fc[0]:
+        search = st.text_input("🔍 关键词", placeholder="订单号/桩编号/文件名",
+                               label_visibility="collapsed")
+    with fc[1]:
+        status_sel = st.selectbox("状态", STATUS_OPTIONS, label_visibility="collapsed")
+    with fc[2]:
+        dc = st.columns(2)
+        with dc[0]:
+            d_from = st.date_input("起始", value=None, label_visibility="collapsed", key="ldf")
+        with dc[1]:
+            d_to = st.date_input("截止", value=None, label_visibility="collapsed", key="ldt")
+    with fc[3]:
+        sort_sel = st.selectbox("排序", list(SORT_OPTIONS.values()), label_visibility="collapsed")
+    with fc[4]:
+        st.write("")
+        st.write("")
+        if st.button("🔍 查询", use_container_width=True, key="search_btn"):
+            st.rerun()
+    page = st.session_state.get("page", 1)
 
-    # 查询参数
     sort_map = {v: k for k, v in SORT_OPTIONS.items()}
     sort_by = sort_map.get(sort_sel, "newest")
     per_page = st.session_state.get("per_page", 50)
-    page = st.session_state.get("page", 1)
 
     dfv = d_from.strftime("%Y-%m-%d") if d_from else ""
     dtv = d_to.strftime("%Y-%m-%d") if d_to else ""
