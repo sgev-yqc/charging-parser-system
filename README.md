@@ -51,7 +51,21 @@ python -m streamlit run app.py --server.address 127.0.0.1
 
 打开 http://127.0.0.1:8501 即可使用。在启动服务的终端按 `Ctrl+C` 停止。修改代码后，重新运行对应的启动命令。
 
-订单和解析文件默认保存在用户目录下的 `.local/share/charging-parser-system`。如需指定位置，启动前设置 `CHARGING_PARSER_DATA_DIR` 环境变量。macOS / Linux 示例：
+订单和解析文件默认保存在用户目录下的 `.local/share/charging-parser-system`。如需指定位置，有两种方式。
+
+**方式一：项目内配置文件（推荐，持久生效）**
+
+在项目根目录创建 `config.local.json`（该文件已被 `.gitignore` 忽略，不会提交到仓库）：
+
+```json
+{
+  "data_dir": "~/charging-parser-data"
+}
+```
+
+**方式二：环境变量（对当次运行生效）**
+
+启动前设置 `CHARGING_PARSER_DATA_DIR`。macOS / Linux 示例：
 
 ```bash
 export CHARGING_PARSER_DATA_DIR="$HOME/charging-parser-data"
@@ -59,6 +73,8 @@ export CHARGING_PARSER_DATA_DIR="$HOME/charging-parser-data"
 ```
 
 Windows PowerShell 示例：`$env:CHARGING_PARSER_DATA_DIR="$HOME\charging-parser-data"`，然后运行上面的启动命令。
+
+两者同时存在时，环境变量优先于 `config.local.json`。
 
 ## 📁 项目结构
 
