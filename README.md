@@ -40,6 +40,15 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1
 ```
 
+如果已经用 conda，也可以用它替代 venv：
+
+```bash
+conda create -n charging-parser python=3.12 -y
+conda activate charging-parser
+pip install -r requirements.txt
+python -m streamlit run app.py --server.address 127.0.0.1
+```
+
 打开 http://127.0.0.1:8501 即可使用。在启动服务的终端按 `Ctrl+C` 停止。修改代码后，重新运行对应的启动命令。
 
 订单和解析文件默认保存在用户目录下的 `.local/share/charging-parser-system`。如需指定位置，启动前设置 `CHARGING_PARSER_DATA_DIR` 环境变量。macOS / Linux 示例：
