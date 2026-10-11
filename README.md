@@ -2,8 +2,8 @@
 
 基于 GB/T 27930 协议的充电通信报文解析工具，支持批量上传、订单管理、多格式导出。
 
-![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)
+![Python](https://img.shields.io/badge/Python-3.12-blue.svg)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.65-red.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 ## ✨ 功能特性
@@ -17,26 +17,39 @@
 
 ## 🚀 快速开始
 
-### 安装依赖
+需要安装 Python 3.12 和 Git。先把仓库下载到本地：
 
 ```bash
-pip install streamlit pandas openpyxl
+git clone https://github.com/sgev-yqc/charging-parser-system.git
+cd charging-parser-system
 ```
 
-### 启动服务
+macOS / Linux：
 
 ```bash
-streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m streamlit run app.py --server.address 127.0.0.1
 ```
 
-访问 http://localhost:8501 即可使用
+Windows PowerShell：
 
-订单和解析文件默认保存在 `~/.local/share/charging-parser-system`。如需指定位置，启动前设置 `CHARGING_PARSER_DATA_DIR` 环境变量，例如：
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1
+```
+
+打开 http://127.0.0.1:8501 即可使用。在启动服务的终端按 `Ctrl+C` 停止。修改代码后，重新运行对应的启动命令。
+
+订单和解析文件默认保存在用户目录下的 `.local/share/charging-parser-system`。如需指定位置，启动前设置 `CHARGING_PARSER_DATA_DIR` 环境变量。macOS / Linux 示例：
 
 ```bash
-export CHARGING_PARSER_DATA_DIR=/path/to/charging-data
-streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+export CHARGING_PARSER_DATA_DIR="$HOME/charging-parser-data"
+.venv/bin/python -m streamlit run app.py --server.address 127.0.0.1
 ```
+
+Windows PowerShell 示例：`$env:CHARGING_PARSER_DATA_DIR="$HOME\charging-parser-data"`，然后运行上面的启动命令。
 
 ## 📁 项目结构
 
@@ -44,6 +57,7 @@ streamlit run app.py --server.port 8501 --server.address 0.0.0.0
 charging_parser_system/
 ├── app.py               # Streamlit 界面
 ├── charging_parser/     # 解析、配置与订单存储
+├── requirements.txt      # Python 依赖
 ├── tests/               # 回归测试
 └── README.md
 
