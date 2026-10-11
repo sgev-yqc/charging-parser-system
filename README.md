@@ -51,17 +51,19 @@ python -m streamlit run app.py --server.address 127.0.0.1
 
 打开 http://127.0.0.1:8501 即可使用。在启动服务的终端按 `Ctrl+C` 停止。修改代码后，重新运行对应的启动命令。
 
-订单和解析文件默认保存在用户目录下的 `.local/share/charging-parser-system`。如需指定位置，有两种方式。
+订单和解析文件默认保存在项目目录下的 `data/` 文件夹（该文件夹已在 `.gitignore` 中）。如需指定位置，有两种方式。
 
 **方式一：项目内配置文件（推荐，持久生效）**
 
-在项目根目录创建 `config.local.json`（该文件已被 `.gitignore` 忽略，不会提交到仓库）：
+复制 `config.example.json` 为 `config.local.json`，再修改 `data_dir`（`config.local.json` 已被 `.gitignore` 忽略，不会提交到仓库）：
 
 ```json
 {
   "data_dir": "~/charging-parser-data"
 }
 ```
+
+`data_dir` 可以是绝对路径，也可以是相对项目根目录的路径（如 `data`）。
 
 **方式二：环境变量（对当次运行生效）**
 

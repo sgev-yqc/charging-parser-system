@@ -4,7 +4,8 @@ import json
 import os
 from pathlib import Path
 
-LOCAL_CONFIG_FILE = Path(__file__).resolve().parent.parent / "config.local.json"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+LOCAL_CONFIG_FILE = PROJECT_ROOT / "config.local.json"
 
 
 def _read_local_config():
@@ -15,12 +16,18 @@ def _read_local_config():
         return json.load(file)
 
 
+def _resolve_data_dir(configured):
+    """Resolve a configured path, anchoring relative paths at the project root."""
+    path = Path(configured).expanduser()
+    return path if path.is_absolute() else PROJECT_ROOT / path
+
+
 def get_data_dir():
-    """Return the configured data directory, with a user-writable default."""
+    """Return the configured data directory, defaulting to ./data in the project."""
     configured = os.environ.get("CHARGING_PARSER_DATA_DIR")
     if configured:
-        return Path(configured).expanduser()
+        return _resolve_data_dir(configured)
     configured = _read_local_config().get("data_dir")
     if configured:
-        return Path(configured).expanduser()
-    return Path.home() / ".local" / "share" / "charging-parser-system"
+        return _resolve_data_dir(configured)
+    return PROJECT_ROOT / "data"
