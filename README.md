@@ -31,17 +31,27 @@ streamlit run app.py --server.port 8501 --server.address 0.0.0.0
 
 访问 http://localhost:8501 即可使用
 
+订单和解析文件默认保存在 `~/.local/share/charging-parser-system`。如需指定位置，启动前设置 `CHARGING_PARSER_DATA_DIR` 环境变量，例如：
+
+```bash
+export CHARGING_PARSER_DATA_DIR=/path/to/charging-data
+streamlit run app.py --server.port 8501 --server.address 0.0.0.0
+```
+
 ## 📁 项目结构
 
 ```
 charging_parser_system/
-├── app.py          # 主程序
-├── data/           # 数据存储目录（自动创建）
-│   ├── orders.json # 订单索引
-│   └── {订单号}/   # 每个订单的独立目录
-│       ├── {原始文件名}.txt
-│       └── parsed_result.json
+├── app.py               # Streamlit 界面
+├── charging_parser/     # 解析、配置与订单存储
+├── tests/               # 回归测试
 └── README.md
+
+<数据目录>/
+├── orders.json          # 订单索引
+└── {订单号}/             # 每个订单的独立目录
+    ├── {原始文件名}.txt
+    └── parsed_result.json
 ```
 
 ## 📋 使用说明
