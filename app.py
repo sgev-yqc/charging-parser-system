@@ -143,6 +143,19 @@ def decode_bcp(data_13bytes):
     v_if = (data_13bytes[12] << 8 | data_13bytes[11]) * 0.1
     return f"单体最高压={v_max:.2f}V, 最高电流={i_max:.1f}A, 能量={energy:.1f}kWh, 总压={v_total:.1f}V, 最高温={t_max}°C, SOC={soc:.1f}%, 接口压={v_if:.1f}V"
 
+def decode_bcs(data_9bytes):
+    if len(data_9bytes) < 9: return f"数据不足({len(data_9bytes)}/9字节)"
+    voltage = int.from_bytes(data_9bytes[0:2], 'little') * 0.1
+    current = int.from_bytes(data_9bytes[2:4], 'little') * 0.1 - 400
+    cell = int.from_bytes(data_9bytes[4:6], 'little')
+    cell_voltage = (cell & 0x0FFF) * 0.01
+    cell_group = cell >> 12
+    soc = data_9bytes[6]
+    remaining = int.from_bytes(data_9bytes[7:9], 'little')
+    return (f"充电电压={voltage:.1f}V, 充电电流={current:.1f}A, "
+            f"最高单体电压={cell_voltage:.2f}V(组号{cell_group}), "
+            f"当前SOC={soc}%, 估算剩余时间={remaining}min")
+
 def decode_cml(data):
     if len(data) < 8: return "数据不足"
     v_high = (data[1] << 8 | data[0]) * 0.1
@@ -239,6 +252,8 @@ def handle_tp_cm(direction, data, tp_buf):
     if control == 0x10:
         tp_buf['total_bytes'] = (data[2] << 8) | data[1]
         tp_buf['total_packets'] = data[3]
+        tp_buf['pgn'] = int.from_bytes(bytes(data[5:8]), 'little')
+        tp_buf['direction'] = direction
         tp_buf['state'] = 'receiving'
         tp_buf['received'] = 0
         tp_buf['data'] = []
@@ -251,18 +266,20 @@ def handle_tp_cm(direction, data, tp_buf):
 
 def handle_tp_dt(data, tp_buf):
     seq = data[0]
+    decoded = f"[TP] 数据传输: 序号{seq}, 原始数据=" + " ".join(f"{byte:02X}" for byte in data[1:])
+    if tp_buf['state'] != 'receiving':
+        return decoded + " (未收到RTS)", False
     payload = data[1:] + [0xFF] * (7 - len(data[1:]))
     tp_buf['data'].extend(payload)
     tp_buf['received'] += 1
-    if tp_buf['received'] >= tp_buf['total_packets']:
-        return "COMPLETE"
-    return f"[TP] 数据传输: 序号{seq}"
+    return decoded, tp_buf['received'] >= tp_buf['total_packets']
 
 def parse_file_content(content):
     """解析文件内容"""
     results = []
     lines = content.decode('utf-8').split('\n')
-    tp_buf = {'state': 'idle', 'data': [], 'total_bytes': 0, 'total_packets': 0, 'received': 0}
+    tp_buf = {'state': 'idle', 'data': [], 'total_bytes': 0, 'total_packets': 0,
+              'received': 0, 'pgn': None, 'direction': None}
     
     for line in lines:
         line = line.strip()
@@ -285,21 +302,23 @@ def parse_file_content(content):
                 if name in ["TP_CM_REQ", "TP_CM_RSP"]:
                     decoded = handle_tp_cm(direction, data, tp_buf)
                 else:
-                    decoded = handle_tp_dt(data, tp_buf)
-                    if decoded == "COMPLETE":
-                        full_data = bytes(tp_buf['data'][:tp_buf['total_bytes']])
-                        if tp_buf['total_bytes'] == 49:
-                            results.append({"type": "data", "name": "BRM", "pgn": 512, "ts": ts_str, 
-                                          "direction": direction, "phase": get_phase("BRM"), 
-                                          "decoded": decode_brm(full_data)})
-                        elif tp_buf['total_bytes'] == 13:
-                            results.append({"type": "data", "name": "BCP", "pgn": 1536, "ts": ts_str,
-                                          "direction": direction, "phase": get_phase("BCP"),
-                                          "decoded": decode_bcp(full_data)})
-                        tp_buf = {'state': 'idle', 'data': [], 'total_bytes': 0, 'total_packets': 0, 'received': 0}
-                        continue
+                    decoded, complete = handle_tp_dt(data, tp_buf)
                 results.append({"type": "data", "name": name, "pgn": pgn, "ts": ts_str,
                               "direction": direction, "phase": phase, "decoded": decoded})
+                if name == "TP_DT" and complete:
+                    full_data = bytes(tp_buf['data'][:tp_buf['total_bytes']])
+                    semantic = {
+                        0x0200: ("BRM", 49, decode_brm),
+                        0x0600: ("BCP", 13, decode_bcp),
+                        0x1100: ("BCS", 9, decode_bcs),
+                    }.get(tp_buf['pgn'])
+                    if semantic and tp_buf['total_bytes'] == semantic[1]:
+                        msg_name, _, decoder = semantic
+                        results.append({"type": "data", "name": msg_name, "pgn": tp_buf['pgn'],
+                                        "ts": ts_str, "direction": tp_buf['direction'],
+                                        "phase": get_phase(msg_name), "decoded": decoder(full_data)})
+                    tp_buf = {'state': 'idle', 'data': [], 'total_bytes': 0, 'total_packets': 0,
+                              'received': 0, 'pgn': None, 'direction': None}
             else:
                 decoders = {
                     "CHM": decode_chm, "BHM": decode_bhm, "CRM": decode_crm,
