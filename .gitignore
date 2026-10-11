@@ -3,3 +3,7 @@ __pycache__/
 *.py[cod]
 config.local.json
 data/
+frontend/node_modules/
+frontend/dist/
+.tmp_test/
+.api_deps/

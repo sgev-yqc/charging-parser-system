@@ -17,8 +17,6 @@ def _parse_files(store, uploaded_files):
         try:
             content = uploaded_file.getvalue()
             order_id = extract_order_id(uploaded_file.name)
-            if order_id in store.load_orders():
-                store.delete_order(order_id)
             store.add_order(order_id, uploaded_file.name, content)
             results.append({"文件名": uploaded_file.name, "订单号": order_id, "状态": "✅ 成功"})
         except Exception as error:
@@ -54,7 +52,18 @@ def _dialog(store):
     ])
     st.dataframe(preview, hide_index=True)
 
-    if st.button("开始上传并解析", type="primary"):
+    repeated_ids = sorted(set(preview.loc[preview["订单号"].duplicated(keep=False), "订单号"]))
+    if repeated_ids:
+        st.error(f"所选文件中有重复订单号：{', '.join(repeated_ids)}。请每个订单只选一个文件。")
+
+    existing_orders = store.load_orders()
+    duplicate_ids = sorted({order_id for order_id in preview["订单号"] if order_id in existing_orders})
+    replace_confirmed = True
+    if duplicate_ids:
+        st.warning(f"以下订单已有解析记录：{', '.join(duplicate_ids)}。继续上传会替换这些订单的原文件和解析结果。")
+        replace_confirmed = st.checkbox("我确认替换已有订单")
+
+    if st.button("开始上传并解析", type="primary", disabled=bool(repeated_ids) or not replace_confirmed):
         st.session_state.last_upload_results = _parse_files(store, uploaded_files)
         # Bump the uploader key so a freshly opened dialog starts empty.
         st.session_state.uploader_round += 1

@@ -9,15 +9,16 @@ from charging_parser.parser import parse_file_content
 
 
 def extract_order_id(filename):
-    """Extract the order ID from a BMS filename."""
+    """Extract a BMS order ID, or use the complete source filename."""
     name = filename.rsplit('.', 1)[0]
     parts = name.split('_')
-    if len(parts) >= 3:
+    if name.startswith('BMS_') and len(parts) >= 3:
         order_part = parts[2]
         if '.' in order_part:
             order_part = order_part.split('.')[0]
-        return order_part
-    return name
+        if order_part:
+            return order_part
+    return filename
 
 
 class OrderStore:
@@ -41,6 +42,9 @@ class OrderStore:
     def add_order(self, order_id, filename, file_content):
         """Store an original file and its parsed results."""
         orders = self.load_orders()
+        # Validate the new content before touching an existing order.
+        results = parse_file_content(file_content)
+        previous_file = Path(orders[order_id]["original_file"]) if order_id in orders else None
         order_dir = self.data_dir / order_id
         order_dir.mkdir(parents=True, exist_ok=True)
 
@@ -48,7 +52,6 @@ class OrderStore:
         with original_file.open('wb') as file:
             file.write(file_content)
 
-        results = parse_file_content(file_content)
         result_file = order_dir / "parsed_result.json"
         with result_file.open('w', encoding='utf-8') as file:
             json.dump(results, file, ensure_ascii=False, indent=2)
@@ -65,6 +68,8 @@ class OrderStore:
         }
 
         self.save_orders(orders)
+        if previous_file and previous_file != original_file and previous_file.exists():
+            previous_file.unlink()
         return orders[order_id]
 
     def delete_order(self, order_id):

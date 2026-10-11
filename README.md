@@ -3,7 +3,8 @@
 基于 GB/T 27930 协议的充电通信报文解析工具，支持批量上传、订单管理、多格式导出。
 
 ![Python](https://img.shields.io/badge/Python-3.12-blue.svg)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.65-red.svg)
+![React](https://img.shields.io/badge/React-19-149eca.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.143-009688.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 ## ✨ 功能特性
@@ -16,9 +17,9 @@
 - 👁️ **结果查看** - 详情页展示统计、阶段分布与报文明细
 - 📥 **多格式导出** - Excel、JSON、TXT、原始文件
 
-## 🚀 快速开始
+## 🚀 新界面：本地启动
 
-需要安装 Python 3.12 和 Git。先把仓库下载到本地：
+需要 Python 3.12、Node.js（含 npm）和 Git。新界面使用 React，调用同一项目中的 Python 解析、存储与导出模块。现有数据目录配置继续生效。
 
 ```bash
 git clone https://github.com/sgev-yqc/charging-parser-system.git
@@ -29,19 +30,29 @@ macOS / Linux：
 
 ```bash
 python3.12 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m streamlit run app.py --server.address 127.0.0.1
+.venv/bin/python -m pip install -r requirements-api.txt
+npm ci --prefix frontend
+npm run build --prefix frontend
+.venv/bin/python -m uvicorn api:app --host 127.0.0.1 --port 8000
 ```
 
 Windows PowerShell：
 
 ```powershell
 py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1
+.\.venv\Scripts\python.exe -m pip install -r requirements-api.txt
+npm ci --prefix frontend
+npm run build --prefix frontend
+.\.venv\Scripts\python.exe -m uvicorn api:app --host 127.0.0.1 --port 8000
 ```
 
-如果已经用 conda，也可以用它替代 venv：
+打开 http://127.0.0.1:8000 使用新界面。开发时可以另开终端运行 `npm run dev --prefix frontend`，通过 http://127.0.0.1:5173 预览；API 仍需在 8000 端口运行。
+
+**目前仅绑定本机地址，尚未加入登录和权限管理；不要直接暴露到公网。**
+
+## 旧版 Streamlit 界面
+
+旧界面继续保留，便于过渡和对照。若已用 conda，也可以用它运行：
 
 ```bash
 conda create -n charging-parser python=3.12 -y
@@ -50,7 +61,7 @@ pip install -r requirements.txt
 python -m streamlit run app.py --server.address 127.0.0.1
 ```
 
-打开 http://127.0.0.1:8501 即可使用。在启动服务的终端按 `Ctrl+C` 停止。修改代码后，重新运行对应的启动命令。
+打开 http://127.0.0.1:8501 使用旧界面。在启动服务的终端按 `Ctrl+C` 停止。修改代码后，重新运行对应的启动命令。
 
 订单和解析文件默认保存在项目目录下的 `data/` 文件夹（该文件夹已在 `.gitignore` 中）。如需指定位置，有两种方式。
 
@@ -83,7 +94,9 @@ Windows PowerShell 示例：`$env:CHARGING_PARSER_DATA_DIR="$HOME\charging-parse
 
 ```
 charging-parser-system/
-├── app.py                  # 入口：页面路由与头部
+├── api.py                  # 新界面的 HTTP API 与静态页面服务
+├── frontend/               # React 界面；构建结果位于 frontend/dist
+├── app.py                  # 旧版 Streamlit 界面入口
 ├── views/                  # 界面视图
 │   ├── list_page.py        # 订单列表（筛选 / 排序 / 分页 / 查看）
 │   ├── detail_page.py      # 订单详情（统计 / 报文明细 / 导出）
@@ -96,6 +109,8 @@ charging-parser-system/
 ├── .streamlit/config.toml  # 主题配色
 ├── config.example.json     # 数据目录配置样例
 ├── requirements.txt        # Python 依赖
+├── requirements-api.txt    # 新界面 API 依赖
+├── requirements-dev.txt    # API 回归测试依赖
 ├── tests/                  # 回归测试
 └── README.md
 
@@ -118,6 +133,8 @@ BMS_20260520150000_13404900000009670026052002800209.2.txt
                               订单号
 ```
 
+其他命名格式直接使用完整源文件名（包括 `.txt`）作为订单号，例如 `37417900000036460025010502684421.3_corrected.txt`。
+
 ### 支持的报文类型
 
 | 报文 | 名称 | 方向 |
@@ -134,18 +151,20 @@ BMS_20260520150000_13404900000009670026052002800209.2.txt
 
 ## 🖥️ 界面预览
 
-界面是单页结构：**订单列表**是唯一入口页，**上传**是头部的弹窗动作，**详情**从列表点「查看」下钻进入。
+界面是单页结构：**解析记录**是入口页，**上传**是首屏主操作，**详情**从记录点「查看结果」进入。
 
 ```
-订单列表（入口页）
-├── 头部      标题 + 「＋ 上传解析」按钮 → 打开上传弹窗
-├── 条件筛选   关键字（订单号 / 文件名）+ 上传起始 / 截止日期 + 重置筛选
-├── 工具栏     订单数与报文数统计、排序方式、每页条数
-└── 订单表格   订单号 | 文件名 | 状态 | 大小 | 报文数 | 上传时间 | [查看]
-                + 分页 + 批量删除
+解析记录（入口页）
+├── 工作台头部  产品定位与用途
+├── 开始解析    「＋ 上传并解析」→ 打开上传弹窗
+├── 概览卡片    订单总数 / 已解析报文 / 最近上传
+├── 记录查找    订单号或文件名搜索 + 更多筛选与排序
+├── 订单列表    订单 | 源文件 | 状态 | 报文数 | 上传时间 | [查看结果]
+│               + 分页
+└── 记录管理    删除订单（需确认）+ 数据存储位置
 
 订单详情（从列表点「查看」进入）
-├── 面包屑    ← 返回订单列表
+├── 面包屑    ← 返回解析记录
 ├── 统计卡片   总报文数 / 涉及阶段 / 报文类型 / 文件大小 / 状态 / 上传时间
 ├── 阶段分布   各阶段汇总条数
 ├── 报文明细   可按阶段、报文类型筛选的表格
@@ -153,7 +172,7 @@ BMS_20260520150000_13404900000009670026052002800209.2.txt
 
 上传弹窗（头部按钮触发）
 ├── 文件选择   支持多选 .txt
-├── 文件预览   文件名 / 订单号 / 大小
+├── 文件预览   文件名 / 订单号 / 大小；同订单号替换确认
 └── 开始上传并解析（带进度条）
 ```
 

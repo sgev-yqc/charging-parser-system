@@ -15,7 +15,7 @@ def render(store, data_dir):
 
     if not order_id or order_id not in orders:
         st.warning("订单不存在或已被删除。")
-        if st.button("返回订单列表"):
+        if st.button("返回解析记录"):
             st.session_state.page = "list"
             st.rerun()
         return
@@ -37,7 +37,7 @@ def render(store, data_dir):
         phases[phase] = phases.get(phase, 0) + 1
         message_types[name] = message_types.get(name, 0) + 1
 
-    if st.button("← 返回订单列表"):
+    if st.button("← 返回解析记录"):
         st.session_state.page = "list"
         st.session_state.selected_order_id = None
         st.rerun()
