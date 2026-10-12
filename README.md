@@ -65,9 +65,9 @@ python -m uvicorn api:app --host 127.0.0.1 --port 8501
 
 ## 数据目录
 
-订单和解析文件默认保存在项目目录下的 `data/` 文件夹（该文件夹已在 `.gitignore` 中）。如需指定位置，有两种方式。
+订单和解析文件默认保存在项目目录下的 `data/` 文件夹（该文件夹已在 `.gitignore` 中）。如需指定位置，使用项目内配置文件。
 
-**方式一：项目内配置文件（推荐，持久生效）**
+**项目内配置文件**
 
 复制 `config.example.json` 为 `config.local.json`，再修改 `data_dir`（`config.local.json` 已被 `.gitignore` 忽略，不会提交到仓库）：
 
@@ -78,19 +78,6 @@ python -m uvicorn api:app --host 127.0.0.1 --port 8501
 ```
 
 `data_dir` 可以是绝对路径，也可以是相对项目根目录的路径（如 `data`）。
-
-**方式二：环境变量（对当次运行生效）**
-
-启动前设置 `CHARGING_PARSER_DATA_DIR`。macOS / Linux 示例：
-
-```bash
-export CHARGING_PARSER_DATA_DIR="$HOME/charging-parser-data"
-.venv/bin/python -m uvicorn api:app --host 127.0.0.1 --port 8501
-```
-
-Windows PowerShell 示例：`$env:CHARGING_PARSER_DATA_DIR="$HOME\charging-parser-data"`，然后运行上面的 API 启动命令。
-
-两者同时存在时，环境变量优先于 `config.local.json`。
 
 ## 📁 项目结构
 

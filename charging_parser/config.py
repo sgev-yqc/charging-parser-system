@@ -1,7 +1,6 @@
 """Runtime configuration for the charging parser application."""
 
 import json
-import os
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -24,9 +23,6 @@ def _resolve_data_dir(configured):
 
 def get_data_dir():
     """Return the configured data directory, defaulting to ./data in the project."""
-    configured = os.environ.get("CHARGING_PARSER_DATA_DIR")
-    if configured:
-        return _resolve_data_dir(configured)
     configured = _read_local_config().get("data_dir")
     if configured:
         return _resolve_data_dir(configured)
