@@ -17,9 +17,9 @@
 - 👁️ **结果查看** - 详情页展示统计、阶段分布与报文明细
 - 📥 **多格式导出** - Excel、JSON、TXT、原始文件
 
-## 🚀 新界面：本地启动
+## 🚀 本地启动
 
-需要 Python 3.12、Node.js（含 npm）和 Git。新界面使用 React，调用同一项目中的 Python 解析、存储与导出模块。现有数据目录配置继续生效。
+需要 Python 3.12、Node.js（含 npm）和 Git。React 界面通过本地 FastAPI 接口调用项目中的解析、存储与导出模块。
 
 ```bash
 git clone https://github.com/sgev-yqc/charging-parser-system.git
@@ -30,38 +30,40 @@ macOS / Linux：
 
 ```bash
 python3.12 -m venv .venv
-.venv/bin/python -m pip install -r requirements-api.txt
+.venv/bin/python -m pip install -r requirements.txt
 npm ci --prefix frontend
 npm run build --prefix frontend
-.venv/bin/python -m uvicorn api:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m uvicorn api:app --host 127.0.0.1 --port 8501
 ```
 
 Windows PowerShell：
 
 ```powershell
 py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-api.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 npm ci --prefix frontend
 npm run build --prefix frontend
-.\.venv\Scripts\python.exe -m uvicorn api:app --host 127.0.0.1 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn api:app --host 127.0.0.1 --port 8501
 ```
 
-打开 http://127.0.0.1:8000 使用新界面。开发时可以另开终端运行 `npm run dev --prefix frontend`，通过 http://127.0.0.1:5173 预览；API 仍需在 8000 端口运行。
+打开 http://127.0.0.1:8501 使用。开发时可以另开终端运行 `npm run dev --prefix frontend`，通过 http://127.0.0.1:5173 预览；API 仍需在 8501 端口运行。在启动 API 的终端按 `Ctrl+C` 停止。如果 8501 已被占用，请先停止占用该端口的旧服务。
 
 **目前仅绑定本机地址，尚未加入登录和权限管理；不要直接暴露到公网。**
 
-## 旧版 Streamlit 界面
+### 使用 conda
 
-旧界面继续保留，便于过渡和对照。若已用 conda，也可以用它运行：
+若已用 conda，也可以用它替代 Python 虚拟环境。进入项目目录后运行：
 
-```bash
+```powershell
 conda create -n charging-parser python=3.12 -y
 conda activate charging-parser
 pip install -r requirements.txt
-python -m streamlit run app.py --server.address 127.0.0.1
+npm ci --prefix frontend
+npm run build --prefix frontend
+python -m uvicorn api:app --host 127.0.0.1 --port 8501
 ```
 
-打开 http://127.0.0.1:8501 使用旧界面。在启动服务的终端按 `Ctrl+C` 停止。修改代码后，重新运行对应的启动命令。
+## 数据目录
 
 订单和解析文件默认保存在项目目录下的 `data/` 文件夹（该文件夹已在 `.gitignore` 中）。如需指定位置，有两种方式。
 
@@ -83,10 +85,10 @@ python -m streamlit run app.py --server.address 127.0.0.1
 
 ```bash
 export CHARGING_PARSER_DATA_DIR="$HOME/charging-parser-data"
-.venv/bin/python -m streamlit run app.py --server.address 127.0.0.1
+.venv/bin/python -m uvicorn api:app --host 127.0.0.1 --port 8501
 ```
 
-Windows PowerShell 示例：`$env:CHARGING_PARSER_DATA_DIR="$HOME\charging-parser-data"`，然后运行上面的启动命令。
+Windows PowerShell 示例：`$env:CHARGING_PARSER_DATA_DIR="$HOME\charging-parser-data"`，然后运行上面的 API 启动命令。
 
 两者同时存在时，环境变量优先于 `config.local.json`。
 
@@ -94,23 +96,16 @@ Windows PowerShell 示例：`$env:CHARGING_PARSER_DATA_DIR="$HOME\charging-parse
 
 ```
 charging-parser-system/
-├── api.py                  # 新界面的 HTTP API 与静态页面服务
+├── api.py                  # HTTP API 与静态页面服务
 ├── frontend/               # React 界面；构建结果位于 frontend/dist
-├── app.py                  # 旧版 Streamlit 界面入口
-├── views/                  # 界面视图
-│   ├── list_page.py        # 订单列表（筛选 / 排序 / 分页 / 查看）
-│   ├── detail_page.py      # 订单详情（统计 / 报文明细 / 导出）
-│   └── upload_dialog.py    # 上传解析弹窗
 ├── charging_parser/        # 解析、存储、配置与导出
 │   ├── parser.py           # GB/T 27930 报文解析
 │   ├── storage.py          # 订单存储（JSON 文件）
 │   ├── config.py           # 数据目录配置
 │   └── export.py           # Excel / JSON / TXT 导出
-├── .streamlit/config.toml  # 主题配色
 ├── config.example.json     # 数据目录配置样例
-├── requirements.txt        # Python 依赖
-├── requirements-api.txt    # 新界面 API 依赖
-├── requirements-dev.txt    # API 回归测试依赖
+├── requirements.txt        # 运行依赖
+├── requirements-dev.txt    # 测试依赖（含运行依赖）
 ├── tests/                  # 回归测试
 └── README.md
 
@@ -149,38 +144,21 @@ BMS_20260520150000_13404900000009670026052002800209.2.txt
 | BSD/CSD | 统计数据 | 双向 |
 | BEM/CEM | 错误报文 | 双向 |
 
-## 🖥️ 界面预览
+## 🖥️ 界面与交互
 
-界面是单页结构：**解析记录**是入口页，**上传**是首屏主操作，**详情**从记录点「查看结果」进入。
+界面默认进入解析工作台：
 
-```
-解析记录（入口页）
-├── 工作台头部  产品定位与用途
-├── 开始解析    「＋ 上传并解析」→ 打开上传弹窗
-├── 概览卡片    订单总数 / 已解析报文 / 最近上传
-├── 记录查找    订单号或文件名搜索 + 更多筛选与排序
-├── 订单列表    订单 | 源文件 | 状态 | 报文数 | 上传时间 | [查看结果]
-│               + 分页
-└── 记录管理    删除订单（需确认）+ 数据存储位置
-
-订单详情（从列表点「查看」进入）
-├── 面包屑    ← 返回解析记录
-├── 统计卡片   总报文数 / 涉及阶段 / 报文类型 / 文件大小 / 状态 / 上传时间
-├── 阶段分布   各阶段汇总条数
-├── 报文明细   可按阶段、报文类型筛选的表格
-└── 导出       原文件 / Excel / JSON / TXT
-
-上传弹窗（头部按钮触发）
-├── 文件选择   支持多选 .txt
-├── 文件预览   文件名 / 订单号 / 大小；同订单号替换确认
-└── 开始上传并解析（带进度条）
-```
+1. 左侧是工作空间导航；顶部显示当前位置，并提供「上传报文」入口。
+2. 工作台显示订单总数、已解析报文数和最近上传时间。解析记录支持按订单号或文件名搜索、按上传日期筛选、排序与分页。
+3. 点击订单号或行末按钮进入订单详情；勾选订单后可批量删除，删除前会弹窗确认。
+4. 点击「上传并解析」打开弹窗，选择一个或多个 TXT 文件。若订单已存在，需要确认替换；完成后可以直接打开解析结果。
+5. 详情页显示有效报文、阶段、报文类型、未识别帧和源文件大小；可搜索并按阶段、报文类型筛选报文明细，每页显示 50 条，并可下载原文件、Excel、JSON 或 TXT。
 
 ## 🔧 技术栈
 
-- **Streamlit** - Web 界面框架
-- **Pandas** - 数据处理
-- **OpenPyXL** - Excel 导出
+- **React / Vite** - 界面
+- **FastAPI / Uvicorn** - 本地接口和页面服务
+- **Pandas / OpenPyXL** - 数据处理与 Excel 导出
 
 ## 📄 协议支持
 

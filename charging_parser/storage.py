@@ -1,4 +1,4 @@
-"""File-backed order storage, independent of the Streamlit interface."""
+"""File-backed order storage for parsed charging messages."""
 
 import json
 import shutil

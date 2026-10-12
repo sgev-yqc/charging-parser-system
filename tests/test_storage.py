@@ -1,4 +1,4 @@
-"""Order persistence checks that do not start Streamlit."""
+"""Order persistence checks independent of the HTTP interface."""
 
 import json
 import os
