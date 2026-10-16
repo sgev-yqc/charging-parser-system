@@ -29,6 +29,52 @@ def transport_lines(pgn, payload, start_ms):
 
 
 class ParserTest(unittest.TestCase):
+    def test_grouped_api_preserves_source_lines_and_legacy_orders(self):
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from fastapi.testclient import TestClient
+        from api import create_app
+        from charging_parser.storage import OrderStore
+
+        lines = ['', 'ignored source line'] + transport_lines(0x1100, bytes(9), 0)
+        lines += ['', can_line(20, 0x1826F456, bytes(3))]
+        content = '\n'.join(lines).encode()
+        with TemporaryDirectory() as temporary:
+            store = OrderStore(temporary)
+            info = store.add_order('sample', 'sample.txt', content)
+            # Simulate an order parsed before source-line/group metadata existed.
+            path = Path(info['result_file'])
+            legacy = json.loads(path.read_text(encoding='utf-8'))
+            for row in legacy:
+                for key in ('line_number', 'raw', 'transport_lines', 'transport_parent'):
+                    row.pop(key, None)
+            path.write_text(json.dumps(legacy), encoding='utf-8')
+            before = path.read_bytes()
+            client = TestClient(create_app(store, frontend_dist=Path(temporary) / 'missing'))
+            data = client.get('/api/orders/sample/messages', params={'page_size': 1}).json()
+            self.assertEqual(data['total'], 2)
+            parent = data['rows'][0]
+            self.assertEqual(parent['name'], 'BCS')
+            self.assertEqual([row['line_number'] for row in parent['frames']], [3, 4, 5, 6, 7])
+            self.assertEqual(parent['frames'][0]['raw'], lines[2])
+            second = client.get('/api/orders/sample/messages', params={'page_size': 1, 'page': 2}).json()
+            self.assertEqual(second['rows'][0]['line_number'], 9)
+            filtered = client.get('/api/orders/sample/messages', params={'name': 'BCS'}).json()
+            self.assertEqual(len(filtered['rows'][0]['frames']), 5)
+            raw = client.get('/api/orders/sample/messages', params={'collapsed': 'false'}).json()
+            self.assertEqual(raw['total'], 7)
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_incomplete_and_out_of_sequence_frames_stay_visible(self):
+        lines = transport_lines(0x1100, bytes(9), 0)
+        incomplete = parse_file_content('\n'.join(lines[:3]).encode())
+        self.assertFalse(any('transport_parent' in row for row in incomplete))
+        # A duplicate packet must never be hidden as part of a complete transfer.
+        lines[3] = lines[2]
+        invalid = parse_file_content('\n'.join(lines).encode())
+        self.assertFalse(any('transport_parent' in row for row in invalid))
+
     def test_transport_frames_and_semantic_messages_are_both_kept(self):
         # 400 V, 10 A, highest cell 3.50 V in group 2, SOC 60%, 45 min.
         bcs = bytes.fromhex("a0 0f 04 10 5e 21 3c 2d 00")

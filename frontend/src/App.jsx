@@ -45,8 +45,6 @@ function orderFromPath() {
 }
 
 function extractOrderId(filename) {
-  const stem = filename.replace(/\.[^.]+$/, '')
-  if (stem.startsWith('BMS_')) return stem.split('_')[2]?.split('.')[0] || filename
   return filename
 }
 
@@ -57,8 +55,8 @@ function UploadDialog({ orders, onClose, onUploaded, onOpenOrder }) {
   const [busy, setBusy] = useState(false)
   const [results, setResults] = useState(null)
   const [error, setError] = useState('')
-  const existingIds = new Set(orders.map(item => item.order_id))
-  const ids = files.map(file => extractOrderId(file.name))
+  const existingIds = new Set(orders.map(item => item.filename.toLowerCase()))
+  const ids = files.map(file => file.name.toLowerCase())
   const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index)
   const replacements = [...new Set(ids.filter(id => existingIds.has(id)))]
 
@@ -87,7 +85,7 @@ function UploadDialog({ orders, onClose, onUploaded, onOpenOrder }) {
   }
 
   function addFiles(selected) {
-    const next = [...selected].filter(file => file.name.toLowerCase().endsWith('.txt'))
+    const next = [...selected].filter(file => /\.(txt|tgz|tar\.gz|zip)$/i.test(file.name))
     setFiles(previous => [...previous, ...next])
     setReplace(false)
     setResults(null)
@@ -96,7 +94,7 @@ function UploadDialog({ orders, onClose, onUploaded, onOpenOrder }) {
   return <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onClose() }}>
     <section className="modal" role="dialog" aria-modal="true" aria-labelledby="upload-title">
       <div className="modal-head">
-        <div><div className="eyebrow">新建解析</div><h2 id="upload-title">上传并解析报文</h2><p>选择 TXT 文件，系统自动提取订单号并保存解析结果。</p></div>
+        <div><div className="eyebrow">新建解析</div><h2 id="upload-title">上传并解析报文</h2><p>选择 TXT 或压缩包，压缩包自动解析其中唯一的 .2.txt 车桩交互报文。</p></div>
         <button className="icon-button" onClick={onClose} disabled={busy} aria-label="关闭"><Icon name="close" /></button>
       </div>
       {!results && <>
@@ -104,10 +102,10 @@ function UploadDialog({ orders, onClose, onUploaded, onOpenOrder }) {
           onDragOver={event => { event.preventDefault(); setDragging(true) }}
           onDragLeave={() => setDragging(false)}
           onDrop={event => { event.preventDefault(); setDragging(false); addFiles(event.dataTransfer.files) }}>
-          <input type="file" accept=".txt,text/plain" multiple onChange={event => { addFiles(event.target.files); event.target.value = '' }} />
+          <input type="file" accept=".txt,.tgz,.tar.gz,.zip" multiple onChange={event => { addFiles(event.target.files); event.target.value = '' }} />
           <span className="drop-icon"><Icon name="upload" size={28} /></span>
           <strong>拖拽文件到这里，或点击选择</strong>
-          <span>支持多选 .txt 文件，单文件最大 50 MB</span>
+          <span>支持 TXT、TGZ、TAR.GZ、ZIP，多选上传，单文件最大 50 MB</span>
         </label>
         {!!files.length && <div className="upload-files">
           <div className="upload-files-title">待解析文件 <span>{files.length} 个</span></div>
@@ -117,8 +115,8 @@ function UploadDialog({ orders, onClose, onUploaded, onOpenOrder }) {
             <button className="icon-button" aria-label={`移除 ${file.name}`} onClick={() => { setFiles(files.filter((_, itemIndex) => itemIndex !== index)); setReplace(false) }}><Icon name="close" size={17} /></button>
           </div>)}
         </div>}
-        {!!duplicates.length && <div className="notice error">所选文件存在相同订单号：{[...new Set(duplicates)].join('、')}。请每个订单只保留一个文件。</div>}
-        {!!replacements.length && <div className="notice warning"><strong>检测到已有订单：</strong>{replacements.join('、')}<label className="confirm-line"><input type="checkbox" checked={replace} onChange={event => setReplace(event.target.checked)} /> 我确认用新文件替换这些订单的原文件和解析结果</label></div>}
+        {!!duplicates.length && <div className="notice error">所选文件存在重复文件名：{[...new Set(duplicates)].join('、')}。请每个文件名只保留一份。</div>}
+        {!!replacements.length && <div className="notice warning"><strong>检测到同名文件：</strong>{replacements.join('、')}<label className="confirm-line"><input type="checkbox" checked={replace} onChange={event => setReplace(event.target.checked)} /> 我确认替换这些同名文件和解析结果</label></div>}
         {error && <div className="notice error">{error}</div>}
       </>}
       {results && <div className="upload-results">
@@ -197,6 +195,25 @@ function Dashboard({ orders, loading, error, onUpload, onView, onDelete }) {
   </>
 }
 
+function MessageRow({ row }) {
+  const [expanded, setExpanded] = useState(false)
+  if (row.type === 'header') return <tr className="message-divider"><td colSpan="6">第 {row.line_number} 行 · {row.content}</td></tr>
+  const frames = row.frames || []
+  const lineLabel = frames.length ? `${frames[0].line_number}–${frames[frames.length - 1].line_number}` : row.line_number
+  return <>
+    <tr>
+      <td className="muted">{lineLabel}</td><td className="nowrap mono">{row.ts || '—'}</td>
+      <td><span className="phase-tag">{row.phase || '其他'}</span></td><td className="strong mono">{row.name || '—'}</td>
+      <td className="nowrap muted">{row.direction || '—'}</td>
+      <td className="decoded">{frames.length ? <button className="transport-toggle" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}><span>{expanded ? '▾' : '▸'} {row.decoded}</span><small>{expanded ? '收起' : '展开'} {frames.length} 帧原始传输报文</small></button> : row.decoded || '—'}</td>
+    </tr>
+    {expanded && frames.map(frame => <tr className="transport-frame" key={frame.line_number}>
+      <td className="muted">{frame.line_number}</td><td className="nowrap mono">{frame.ts}</td><td><span className="phase-tag">{frame.phase}</span></td><td className="mono">{frame.name}</td><td className="nowrap muted">{frame.direction}</td>
+      <td className="decoded"><div>{frame.decoded}</div><code>{frame.raw}</code></td>
+    </tr>)}
+  </>
+}
+
 function OrderDetail({ orderId, onBack }) {
   const [detail, setDetail] = useState(null)
   const [rows, setRows] = useState([])
@@ -241,7 +258,7 @@ function OrderDetail({ orderId, onBack }) {
     <div className="detail-grid"><section className="card phase-card"><div className="card-heading"><h2>阶段分布</h2><span>按有效报文统计</span></div>{Object.entries(phases).sort((a, b) => b[1] - a[1]).map(([label, count]) => <div className="phase-row" key={label}><span>{label}</span><div className="phase-track"><div style={{ width: `${Math.max(3, count / maxPhase * 100)}%` }} /></div><strong>{count.toLocaleString()}</strong></div>)}</section><section className="card export-card"><div className="card-heading"><h2>导出结果</h2><span>保留原始数据和解析记录</span></div><div className="export-list"><a href={exportUrl('excel')}><span className="export-symbol xls">X</span><span><strong>Excel 表格</strong><small>适合筛选与统计</small></span><Icon name="download" size={18} /></a><a href={exportUrl('json')}><span className="export-symbol json">{`{}`}</span><span><strong>JSON 数据</strong><small>适合程序继续处理</small></span><Icon name="download" size={18} /></a><a href={exportUrl('txt')}><span className="export-symbol txt">T</span><span><strong>TXT 解析报告</strong><small>便于阅读和留档</small></span><Icon name="download" size={18} /></a><a href={exportUrl('original')}><span className="export-symbol raw"><Icon name="file" size={18} /></span><span><strong>下载原文件</strong><small>未修改的上传内容</small></span><Icon name="download" size={18} /></a></div></section></div>
     <section className="messages-section"><div className="section-title"><div><div className="eyebrow">报文记录</div><h2>报文明细 <span>{total.toLocaleString()}</span></h2><p>按阶段和报文类型定位，查看完整解析内容。</p></div></div><div className="message-toolbar"><div className="search-field"><Icon name="search" size={18} /><input aria-label="搜索解析内容" placeholder="搜索报文名、时间或解析内容" value={query} onChange={event => { setQuery(event.target.value); setPage(1) }} /></div><select aria-label="筛选阶段" value={phase} onChange={event => { setPhase(event.target.value); setPage(1) }}><option value="">全部阶段</option>{Object.keys(phases).map(item => <option key={item}>{item}</option>)}</select><select aria-label="筛选报文" value={name} onChange={event => { setName(event.target.value); setPage(1) }}><option value="">全部报文</option>{Object.keys(types).sort().map(item => <option key={item}>{item}</option>)}</select></div>
       {error && <div className="notice error">{error}</div>}
-      <div className="table-panel"><div className="messages-table-wrap"><table className="messages-table"><thead><tr><th>序号</th><th>时间戳</th><th>阶段</th><th>报文</th><th>方向</th><th>解析内容</th></tr></thead><tbody>{rows.map(row => row.type === 'header' ? <tr key={row.sequence} className="message-divider"><td colSpan="6">{row.content}</td></tr> : <tr key={row.sequence}><td className="muted">{row.sequence}</td><td className="nowrap mono">{row.ts || '—'}</td><td><span className="phase-tag">{row.phase || '其他'}</span></td><td className="strong mono">{row.name || '—'}</td><td className="nowrap muted">{row.direction || '—'}</td><td className="decoded">{row.decoded || '—'}</td></tr>)}{!rows.length && <tr><td colSpan="6" className="table-empty">没有符合条件的报文</td></tr>}</tbody></table></div><div className="table-footer"><span>共 {total.toLocaleString()} 条 · 每页 50 条</span><div className="pagination"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button><span>{page} / {pageCount}</span><button disabled={page >= pageCount} onClick={() => setPage(page + 1)}>下一页</button></div></div></div>
+      <div className="table-panel"><div className="messages-table-wrap"><table className="messages-table"><thead><tr><th>原始行号</th><th>时间戳</th><th>阶段</th><th>报文</th><th>方向</th><th>解析内容</th></tr></thead><tbody>{rows.map(row => <MessageRow key={row.sequence} row={row} />)}{!rows.length && <tr><td colSpan="6" className="table-empty">没有符合条件的报文</td></tr>}</tbody></table></div><div className="table-footer"><span>共 {total.toLocaleString()} 条 · 每页 50 条</span><div className="pagination"><button disabled={page <= 1} onClick={() => setPage(page - 1)}>上一页</button><span>{page} / {pageCount}</span><button disabled={page >= pageCount} onClick={() => setPage(page + 1)}>下一页</button></div></div></div>
     </section><div className="detail-danger"><span>上传于 {formatTime(order.upload_time)}</span></div>
   </>
 }

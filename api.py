@@ -10,9 +10,11 @@ from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from charging_parser.uploads import SUPPORTED_SUFFIXES, read_upload
 from charging_parser.config import get_data_dir
 from charging_parser.export import export_excel, export_json, export_txt
 from charging_parser.storage import OrderStore, extract_order_id
+from charging_parser.parser import parse_file_content
 
 MAX_FILE_BYTES = 50 * 1024 * 1024
 SAFE_ORDER_ID = re.compile(r'[^<>:"/\\|?*\x00-\x1f]{1,255}\Z')
@@ -38,7 +40,13 @@ def _messages_for(store, order_id):
     if not path.is_file():
         raise HTTPException(status_code=404, detail="解析结果文件不存在")
     with path.open("r", encoding="utf-8") as handle:
-        return orders[order_id], json.load(handle)
+        messages = json.load(handle)
+    # Reparse legacy results from the preserved source, without rewriting user files.
+    if any('line_number' not in message for message in messages):
+        original = Path(orders[order_id]['original_file'])
+        _, content = read_upload(original.name, original.read_bytes())
+        messages = parse_file_content(content)
+    return orders[order_id], messages
 
 
 def create_app(order_store=None, frontend_dist=FRONTEND_DIST):
@@ -76,11 +84,18 @@ def create_app(order_store=None, frontend_dist=FRONTEND_DIST):
         phase: str = "",
         name: str = "",
         q: str = "",
+        collapsed: bool = True,
     ):
         _, messages = _messages_for(store, order_id)
         term = q.casefold().strip()
         filtered = []
+        children = {}
+        for message in messages:
+            if 'transport_parent' in message:
+                children.setdefault(message['transport_parent'], []).append(message)
         for index, message in enumerate(messages, 1):
+            if collapsed and 'transport_parent' in message:
+                continue
             if message.get("type") == "header" and (phase or name or term):
                 continue
             if phase and message.get("phase") != phase:
@@ -89,7 +104,10 @@ def create_app(order_store=None, frontend_dist=FRONTEND_DIST):
                 continue
             if term and not any(term in str(message.get(key, "")).casefold() for key in ("name", "decoded", "ts", "pgn")):
                 continue
-            filtered.append({"sequence": index, **message})
+            row = {"sequence": index, **message}
+            if collapsed and 'transport_lines' in message:
+                row['frames'] = children.get(message['line_number'], [])
+            filtered.append(row)
         start = (page - 1) * page_size
         return {"rows": filtered[start:start + page_size], "total": len(filtered), "page": page, "page_size": page_size}
 
@@ -104,19 +122,23 @@ def create_app(order_store=None, frontend_dist=FRONTEND_DIST):
             order_id = extract_order_id(filename)
             result = {"filename": filename, "order_id": order_id, "ok": False}
             try:
-                if not filename.lower().endswith(".txt") or Path(filename).name != filename or "\\" in filename:
-                    raise ValueError("仅支持文件名安全的 TXT 文件")
+                if not filename.lower().endswith(SUPPORTED_SUFFIXES) or Path(filename).name != filename or "\\" in filename:
+                    raise ValueError("仅支持文件名安全的 TXT、TGZ、TAR.GZ、ZIP 文件")
                 if not SAFE_ORDER_ID.fullmatch(order_id) or order_id in {".", ".."} or Path(order_id).is_reserved():
                     raise ValueError("源文件名无法作为安全的订单号")
-                if order_id in seen:
-                    raise ValueError("本批次中订单号重复")
-                seen.add(order_id)
-                if order_id in store.load_orders() and not replace:
-                    raise ValueError("订单已存在，请确认替换后重试")
+                if order_id.casefold() in seen:
+                    raise ValueError("本批次中原文件名重复")
+                seen.add(order_id.casefold())
+                existing = store.load_orders()
+                previous_order_id = next((key for key, info in existing.items()
+                                          if info.get("filename", "").casefold() == filename.casefold()), None)
+                if previous_order_id is not None and not replace:
+                    raise ValueError("同名文件已存在，请确认替换后重试")
                 content = upload.file.read(MAX_FILE_BYTES + 1)
                 if len(content) > MAX_FILE_BYTES:
                     raise ValueError("文件超过 50 MB 限制")
-                info = store.add_order(order_id, filename, content)
+                source_member, log_content = read_upload(filename, content)
+                info = store.add_order(order_id, filename, content, log_content=log_content, source_member=source_member, previous_order_id=previous_order_id)
                 result.update(ok=True, message_count=info["message_count"])
             except (ValueError, UnicodeError) as error:
                 result["error"] = str(error)

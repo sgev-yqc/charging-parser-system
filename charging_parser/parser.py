@@ -224,6 +224,48 @@ def handle_tp_dt(data, tp_buf):
     tp_buf['received'] += 1
     return decoded, tp_buf['received'] >= tp_buf['total_packets']
 
+def attach_transport_groups(results):
+    """Link only complete, sequential transfers; leave incomplete frames visible."""
+    frames = []
+    pending = None
+    expected = 0
+    pgn = None
+    for row in results:
+        name = row.get('name', '')
+        if name.startswith('TP_'):
+            _, _, data = parse_line(row['raw'])
+            if name != 'TP_DT' and data and data[0] == 0x10:
+                frames = [row]
+                pending = None
+                expected = data[3] if len(data) >= 8 else 0
+                pgn = int.from_bytes(bytes(data[5:8]), 'little')
+            elif name == 'TP_DT' and frames:
+                sequence = sum(frame.get('name') == 'TP_DT' for frame in frames) + 1
+                if not data or data[0] != sequence:
+                    frames = []
+                else:
+                    frames.append(row)
+            elif frames and name != 'TP_DT' and data:
+                if data[0] == 0x11:
+                    frames.append(row)
+                elif data[0] == 0x13:
+                    ack_pgn = int.from_bytes(bytes(data[5:8]), 'little')
+                    if pending and ack_pgn == pgn:
+                        row['transport_parent'] = pending['line_number']
+                        pending['transport_lines'].append(row['line_number'])
+                    frames = []
+                    pending = None
+                elif data[0] == 0xFF:
+                    frames = []
+                    pending = None
+        elif name in ('BRM', 'BCP', 'BCS') and frames and row.get('pgn') == pgn:
+            if sum(frame.get('name') == 'TP_DT' for frame in frames) == expected:
+                row['transport_lines'] = [frame['line_number'] for frame in frames]
+                for frame in frames:
+                    frame['transport_parent'] = row['line_number']
+                pending = row
+
+
 def parse_file_content(content):
     """解析文件内容"""
     results = []
@@ -231,11 +273,11 @@ def parse_file_content(content):
     tp_buf = {'state': 'idle', 'data': [], 'total_bytes': 0, 'total_packets': 0,
               'received': 0, 'pgn': None, 'direction': None}
     
-    for line in lines:
+    for line_number, line in enumerate(lines, 1):
         line = line.strip()
         if not line or any(line.startswith(x) for x in ['插枪', '充电开始', '充电结束', '拔枪']):
             if line:
-                results.append({"type": "header", "content": line})
+                results.append({"type": "header", "content": line, "line_number": line_number})
             continue
         
         parsed = parse_line(line)
@@ -253,7 +295,7 @@ def parse_file_content(content):
                     decoded = handle_tp_cm(direction, data, tp_buf)
                 else:
                     decoded, complete = handle_tp_dt(data, tp_buf)
-                results.append({"type": "data", "name": name, "pgn": pgn, "ts": ts_str,
+                results.append({"type": "data", "name": name, "pgn": pgn, "ts": ts_str, "line_number": line_number, "raw": line,
                               "direction": direction, "phase": phase, "decoded": decoded})
                 if name == "TP_DT" and complete:
                     full_data = bytes(tp_buf['data'][:tp_buf['total_bytes']])
@@ -265,7 +307,7 @@ def parse_file_content(content):
                     if semantic and tp_buf['total_bytes'] == semantic[1]:
                         msg_name, _, decoder = semantic
                         results.append({"type": "data", "name": msg_name, "pgn": tp_buf['pgn'],
-                                        "ts": ts_str, "direction": tp_buf['direction'],
+                                        "ts": ts_str, "line_number": line_number, "raw": line, "direction": tp_buf['direction'],
                                         "phase": get_phase(msg_name), "decoded": decoder(full_data)})
                     tp_buf = {'state': 'idle', 'data': [], 'total_bytes': 0, 'total_packets': 0,
                               'received': 0, 'pgn': None, 'direction': None}
@@ -278,11 +320,12 @@ def parse_file_content(content):
                     "CSD": decode_csd, "CTS": decode_cts
                 }
                 decoded = decoders.get(name, lambda x: "原始数据: " + " ".join(f"{b:02x}" for b in x))(data)
-                results.append({"type": "data", "name": name, "pgn": pgn, "ts": ts_str,
+                results.append({"type": "data", "name": name, "pgn": pgn, "ts": ts_str, "line_number": line_number, "raw": line,
                               "direction": direction, "phase": phase, "decoded": decoded})
         else:
-            results.append({"type": "unknown", "name": "UNKNOWN", "pgn": 0, "ts": ts_str,
+            results.append({"type": "unknown", "name": "UNKNOWN", "pgn": 0, "ts": ts_str, "line_number": line_number, "raw": line,
                           "direction": "未知", "phase": "其他", 
                           "decoded": f"未知ID: 0x{can_id:08X}"})
     
+    attach_transport_groups(results)
     return results

@@ -38,7 +38,7 @@ class StorageTest(unittest.TestCase):
             with patch("charging_parser.config.LOCAL_CONFIG_FILE", Path(temporary) / "missing.json"):
                 self.assertEqual(get_data_dir(), PROJECT_ROOT / "data")
             self.assertFalse(data_dir.exists())
-            self.assertEqual(extract_order_id("BMS_20260101_sample.2.txt"), "sample")
+            self.assertEqual(extract_order_id("BMS_20260101_sample.2.txt"), "BMS_20260101_sample.2.txt")
             self.assertEqual(extract_order_id("37417900000036460025010502684421.3_corrected.txt"), "37417900000036460025010502684421.3_corrected.txt")
             self.assertEqual(extract_order_id("37417900000036460025010502684421.3.txt"), "37417900000036460025010502684421.3.txt")
             self.assertEqual(extract_order_id("3741790000000329_1_26.3_corrected.txt"), "3741790000000329_1_26.3_corrected.txt")
